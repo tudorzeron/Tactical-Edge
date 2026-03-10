@@ -1,4 +1,14 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+
+const useIsMobile = () => {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+  return isMobile;
+};
 
 // ============================================================
 // PASTE YOUR ANTHROPIC API KEY BETWEEN THE QUOTES BELOW
@@ -273,7 +283,18 @@ const inputStyle = {
 };
 
 export default function TacticalEdge() {
+  const isMobile = useIsMobile();
   const [mode, setMode] = useState("pregame");
+
+  useEffect(() => {
+    let meta = document.querySelector("meta[name=viewport]");
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = "viewport";
+      document.head.appendChild(meta);
+    }
+    meta.content = "width=device-width, initial-scale=1, maximum-scale=1";
+  }, []);
 
   // Our dual formations
   const [ourAttackF, setOurAttackF] = useState("4-3-3");
@@ -418,7 +439,7 @@ ${mode==="halftime"?"Lead the ATTACKING and ADJUSTMENTS sections with the most c
   const FormationCard = () => (
     <div style={{ background:"white", border:"1px solid #d1e5d1", borderRadius:"10px", padding:"18px", boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
       <div style={{ fontSize:"10px", letterSpacing:"2px", color:"#6b9f6b", marginBottom:"14px", fontFamily:"monospace" }}>FORMATION MATCHUP</div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px" }}>
+      <div className="formation-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px" }}>
         <DualFormationSelector
           label="OUR SHAPE"
           color="#16a34a"
@@ -514,22 +535,31 @@ ${mode==="halftime"?"Lead the ATTACKING and ADJUSTMENTS sections with the most c
         .run:hover{background:#15803d!important;transform:translateY(-1px);}
         ::-webkit-scrollbar{width:5px;}
         ::-webkit-scrollbar-thumb{background:#c1d5c1;border-radius:3px;}
+        * { box-sizing: border-box; }
+        @media(max-width:767px){
+          .main-grid { grid-template-columns: 1fr !important; }
+          .film-grid { grid-template-columns: 1fr !important; }
+          .formation-grid { grid-template-columns: 1fr 1fr !important; gap: 8px !important; }
+          .tab-label { display: none; }
+          .tab-desc { display: none !important; }
+          .header-badge { display: none; }
+        }
       `}</style>
 
       {/* Header */}
       <div style={{
-        background:"#1a3320", color:"white", padding:"14px 24px",
+        background:"#1a3320", color:"white", padding: isMobile ? "12px 16px" : "14px 24px",
         display:"flex", alignItems:"center", justifyContent:"space-between",
         boxShadow:"0 2px 10px rgba(0,0,0,0.25)"
       }}>
         <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-          <span style={{ fontSize:"22px" }}>⬡</span>
+          <span style={{ fontSize: isMobile ? "18px" : "22px" }}>⬡</span>
           <div>
-            <div style={{ fontSize:"15px", fontWeight:"bold", letterSpacing:"3px", color:"#86efac", fontFamily:"monospace" }}>TACTICAL EDGE</div>
-            <div style={{ fontSize:"9px", color:"#4ade8055", letterSpacing:"2px", fontFamily:"monospace" }}>FORMATION INTELLIGENCE SYSTEM</div>
+            <div style={{ fontSize: isMobile ? "13px" : "15px", fontWeight:"bold", letterSpacing:"3px", color:"#86efac", fontFamily:"monospace" }}>TACTICAL EDGE</div>
+            {!isMobile && <div style={{ fontSize:"9px", color:"#4ade8055", letterSpacing:"2px", fontFamily:"monospace" }}>FORMATION INTELLIGENCE SYSTEM</div>}
           </div>
         </div>
-        <div style={{
+        <div className="header-badge" style={{
           fontSize:"10px", color:"#86efac", background:"rgba(134,239,172,0.12)",
           border:"1px solid rgba(134,239,172,0.3)", padding:"5px 14px",
           borderRadius:"3px", letterSpacing:"2px", fontFamily:"monospace"
@@ -538,29 +568,31 @@ ${mode==="halftime"?"Lead the ATTACKING and ADJUSTMENTS sections with the most c
         </div>
       </div>
 
-      <div style={{ maxWidth:"1200px", margin:"0 auto", padding:"20px 16px" }}>
+      <div style={{ maxWidth:"1200px", margin:"0 auto", padding: isMobile ? "12px 10px" : "20px 16px" }}>
 
         {/* Mode Tabs */}
-        <div style={{ display:"flex", gap:"6px", marginBottom:"20px", background:"#dce8dc", padding:"4px", borderRadius:"8px" }}>
+        <div style={{ display:"flex", gap:"4px", marginBottom:"16px", background:"#dce8dc", padding:"4px", borderRadius:"8px" }}>
           {MODES.map(m => (
             <button key={m.id} className="tab" onClick={() => { setMode(m.id); setAnalysis(null); }} style={{
               flex:1, background: mode===m.id ? "white" : "transparent",
               border: mode===m.id ? "1px solid #c1d5c1" : "1px solid transparent",
               color: mode===m.id ? "#14532d" : "#527052",
-              padding:"10px 8px", borderRadius:"5px", cursor:"pointer", textAlign:"center",
+              padding: isMobile ? "8px 4px" : "10px 8px",
+              borderRadius:"5px", cursor:"pointer", textAlign:"center",
               boxShadow: mode===m.id ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
               transition:"all 0.15s"
             }}>
-              <div style={{ fontSize:"15px" }}>{m.icon}</div>
-              <div style={{ fontSize:"11px", fontWeight:"bold", letterSpacing:"0.5px", fontFamily:"monospace", marginTop:"3px" }}>{m.label}</div>
-              <div style={{ fontSize:"9px", color:"#6b9f6b", marginTop:"2px" }}>{m.desc}</div>
+              <div style={{ fontSize: isMobile ? "18px" : "15px" }}>{m.icon}</div>
+              <div className="tab-label" style={{ fontSize:"11px", fontWeight:"bold", letterSpacing:"0.5px", fontFamily:"monospace", marginTop:"3px" }}>{m.label}</div>
+              <div className="tab-desc" style={{ fontSize:"9px", color:"#6b9f6b", marginTop:"2px" }}>{m.desc}</div>
+              {isMobile && <div style={{ fontSize:"9px", fontWeight:"bold", fontFamily:"monospace", marginTop:"2px", color: mode===m.id ? "#14532d" : "#6b9f6b" }}>{m.label.split(" ")[0]}</div>}
             </button>
           ))}
         </div>
 
         {/* FILM MODE */}
         {mode === "film" ? (
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"20px", alignItems:"start" }}>
+          <div className="film-grid" style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:"20px", alignItems:"start" }}>
             <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
               <div style={{ background:"white", border:"1px solid #d1e5d1", borderRadius:"10px", padding:"18px", boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
                 <div style={{ fontSize:"10px", letterSpacing:"2px", color:"#6b9f6b", marginBottom:"14px", fontFamily:"monospace" }}>MATCHUP</div>
@@ -570,7 +602,7 @@ ${mode==="halftime"?"Lead the ATTACKING and ADJUSTMENTS sections with the most c
                     placeholder="e.g. San Francisco State"
                     style={{ width:"100%", background:"#f6fdf6", border:"1.5px solid #d1e5d1", color:"#1a3320", padding:"8px 10px", borderRadius:"6px", fontSize:"13px", fontFamily:"Georgia, serif", boxSizing:"border-box" }} />
                 </div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
+                <div className="formation-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
                   <DualFormationSelector label="OUR SHAPE" color="#16a34a" attackF={ourAttackF} setAttackF={setOurAttackF} defendF={ourDefendF} setDefendF={setOurDefendF} flip={false} />
                   <DualFormationSelector label="OPPONENT SHAPE" color="#dc2626" attackF={theirAttackF} setAttackF={setTheirAttackF} defendF={theirDefendF} setDefendF={setTheirDefendF} flip={true} />
                 </div>
@@ -619,7 +651,7 @@ ${mode==="halftime"?"Lead the ATTACKING and ADJUSTMENTS sections with the most c
         ) : (
 
           /* STANDARD MODES */
-          <div style={{ display:"grid", gridTemplateColumns:"minmax(280px,420px) 1fr", gap:"20px", alignItems:"start" }}>
+          <div className="main-grid" style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(280px,420px) 1fr", gap:"20px", alignItems:"start" }}>
             <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
               <FormationCard />
 
