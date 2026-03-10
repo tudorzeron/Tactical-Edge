@@ -421,6 +421,8 @@ export default function TacticalEdge() {
   const [diagrams, setDiagrams] = useState(null);
   const [showDiagrams, setShowDiagrams] = useState(false);
   const [diagramLoading, setDiagramLoading] = useState(false);
+  const [sessionIdeas, setSessionIdeas] = useState(null);
+  const [sessionLoading, setSessionLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [savedReports, setSavedReports] = useState(() => {
@@ -667,7 +669,7 @@ Rules:
 - Each diagram must show a DIFFERENT tactical pattern from the analysis`;
 
   const run = async () => {
-    setLoading(true); setAnalysis(null); setError(null); setDiagrams(null);
+    setLoading(true); setAnalysis(null); setError(null); setDiagrams(null); setSessionIdeas(null);
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -692,6 +694,8 @@ Rules:
         setAnalysis(parsed);
         // Kick off diagram generation in background
         generateDiagrams(text);
+        // Kick off session ideas in background
+        if (mode === "pregame" || mode === "film") generateSessionIdeas(text);
       }
     } catch(e) {
       setError("Connection failed: " + e.message);
@@ -729,7 +733,144 @@ Rules:
     setDiagramLoading(false);
   };
 
-  const filledCount = FILM_FIELDS.flatMap(s => s.fields).filter(f => filmData[f.id]?.trim()).length;
+  const generateSessionIdeas = async (analysisText) => {
+    setSessionLoading(true);
+    try {
+      const prompt = `You are an elite college soccer coach. Based on this tactical analysis of an upcoming opponent, generate exactly 3 training session ideas to prepare the team this week.
+
+ANALYSIS:
+${analysisText}
+
+OUR FORMATION: ${ourAttackF} attacking / ${ourDefendF} defending
+OPPONENT: ${ourAttackF} vs ${theirAttackF} attacking / ${theirDefendF} defending
+${opponentName ? `OPPONENT NAME: ${opponentName}` : ""}
+
+Return ONLY a JSON array, no markdown, no explanation:
+[
+  {
+    "theme": "Session theme title (max 5 words)",
+    "focus": "One sharp sentence — what tactical problem this session solves",
+    "drills": ["Drill idea 1 (1 sentence)", "Drill idea 2 (1 sentence)"],
+    "duration": "e.g. 25 min",
+    "intensity": "Technical" | "Tactical" | "High Intensity"
+  }
+]`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true"
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      const data = await res.json();
+      if (!data.error) {
+        const text = data.content?.map(b => b.text||"").join("") || "";
+        try {
+          const clean = text.replace(/```json|```/g, "").trim();
+          setSessionIdeas(JSON.parse(clean));
+        } catch { /* silent fail */ }
+      }
+    } catch { /* silent fail */ }
+    setSessionLoading(false);
+  };
+
+  const printMatchdaySheet = () => {
+    const date = new Date().toLocaleDateString("en-US", { weekday:"long", year:"numeric", month:"long", day:"numeric" });
+    const analysisHTML = (analysis || []).map(sec => `
+      <div class="section">
+        <div class="section-title">${sec.title.toUpperCase()}</div>
+        ${sec.items.map(item => `<div class="bullet">▸ ${item}</div>`).join("")}
+      </div>`).join("");
+
+    const sessionHTML = sessionIdeas ? `
+      <div class="page-break"></div>
+      <div class="sheet-header">SESSION IDEAS — PREP WEEK</div>
+      <div class="session-grid">
+        ${sessionIdeas.map(s => `
+          <div class="session-card">
+            <div class="session-theme">${s.theme.toUpperCase()}</div>
+            <div class="session-badge">${s.intensity} · ${s.duration}</div>
+            <div class="session-focus">${s.focus}</div>
+            ${s.drills.map(d => `<div class="session-drill">▸ ${d}</div>`).join("")}
+          </div>`).join("")}
+      </div>` : "";
+
+    const win = window.open("", "_blank");
+    win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+<title>Tactical Edge — Matchday Sheet</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: Georgia, serif; color: #1a2e1a; background: white; padding: 32px; font-size: 13px; }
+  .header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom: 3px solid #1a3320; padding-bottom: 14px; margin-bottom: 20px; }
+  .title { font-family: monospace; font-size: 22px; font-weight: bold; color: #1a3320; letter-spacing: 4px; }
+  .subtitle { font-family: monospace; font-size: 9px; color: #6b9f6b; letter-spacing: 2px; margin-top: 4px; }
+  .meta { text-align: right; font-family: monospace; font-size: 10px; color: #527052; line-height: 1.8; }
+  .formations { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; padding: 14px; background: #f6fdf6; border: 1px solid #d1e5d1; border-radius: 6px; }
+  .formation-block { text-align: center; }
+  .formation-label { font-family: monospace; font-size: 9px; color: #6b9f6b; letter-spacing: 2px; margin-bottom: 6px; }
+  .formation-shapes { font-size: 12px; color: #1a3320; font-weight: bold; }
+  .formation-sub { font-size: 10px; color: #527052; font-family: monospace; margin-top: 2px; }
+  .sheet-header { font-family: monospace; font-size: 11px; letter-spacing: 3px; color: #6b9f6b; margin-bottom: 14px; border-bottom: 1px solid #d1e5d1; padding-bottom: 6px; }
+  .section { margin-bottom: 14px; break-inside: avoid; }
+  .section-title { font-family: monospace; font-size: 10px; font-weight: bold; color: #1a3320; letter-spacing: 2px; margin-bottom: 6px; padding: 4px 8px; background: #e8f5e8; border-left: 3px solid #1a3320; }
+  .bullet { font-size: 12px; line-height: 1.7; padding: 2px 0 2px 10px; color: #1a2e1a; }
+  .session-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 12px; }
+  .session-card { border: 1px solid #d1e5d1; border-radius: 6px; padding: 12px; break-inside: avoid; }
+  .session-theme { font-family: monospace; font-size: 10px; font-weight: bold; color: #1a3320; letter-spacing: 1px; margin-bottom: 4px; }
+  .session-badge { font-family: monospace; font-size: 9px; color: #6b9f6b; margin-bottom: 8px; }
+  .session-focus { font-size: 11px; color: #1a2e1a; line-height: 1.5; margin-bottom: 8px; border-bottom: 1px solid #e8f5e8; padding-bottom: 8px; }
+  .session-drill { font-size: 11px; color: #3d5c3d; padding: 2px 0; line-height: 1.5; }
+  .page-break { page-break-before: always; margin-top: 30px; }
+  .footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #d1e5d1; font-family: monospace; font-size: 9px; color: #a0bfa0; text-align: right; letter-spacing: 1px; }
+  @media print { body { padding: 20px; } }
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="title">⬡ TACTICAL EDGE</div>
+      <div class="subtitle">MATCHDAY PREPARATION SHEET</div>
+    </div>
+    <div class="meta">
+      ${opponentName ? `<div><strong>vs ${opponentName}</strong></div>` : ""}
+      <div>${date}</div>
+      <div>${activeMode.label.toUpperCase()}</div>
+    </div>
+  </div>
+
+  <div class="formations">
+    <div class="formation-block">
+      <div class="formation-label">OUR SHAPE</div>
+      <div class="formation-shapes">⚔ ${ourAttackF} &nbsp;|&nbsp; 🛡 ${ourDefendF}</div>
+      <div class="formation-sub">Attack / Defend</div>
+    </div>
+    <div class="formation-block">
+      <div class="formation-label">OPPONENT SHAPE</div>
+      <div class="formation-shapes">⚔ ${theirAttackF} &nbsp;|&nbsp; 🛡 ${theirDefendF}</div>
+      <div class="formation-sub">Attack / Defend</div>
+    </div>
+  </div>
+
+  <div class="sheet-header">TACTICAL ANALYSIS</div>
+  ${analysisHTML}
+  ${sessionHTML}
+
+  <div class="footer">Tactical Edge · Formation Intelligence System · ${date}</div>
+  <script>window.onload = () => { window.print(); }</script>
+</body>
+</html>`);
+    win.document.close();
+  };
   const totalFields = FILM_FIELDS.flatMap(s => s.fields).length;
 
   const TacticalDiagram = ({ diagram }) => {
@@ -893,6 +1034,48 @@ Rules:
       })}
       {analysis && (
         <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+
+          {/* Session Ideas */}
+          {(sessionIdeas || sessionLoading) && (
+            <div style={{ background:"white", border:"1px solid #d1e5d1", borderRadius:"10px", overflow:"hidden", boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
+              <div style={{ background:"#1a3320", padding:"12px 16px", display:"flex", alignItems:"center", gap:"8px" }}>
+                <span style={{ fontSize:"13px" }}>📋</span>
+                <span style={{ fontFamily:"monospace", fontSize:"10px", letterSpacing:"2px", color:"#86efac", fontWeight:"bold" }}>SESSION IDEAS — PREP WEEK</span>
+                {sessionLoading && <LoadingDots />}
+              </div>
+              {sessionIdeas && (
+                <div style={{ display:"flex", flexDirection:"column", gap:"0" }}>
+                  {sessionIdeas.map((s, i) => (
+                    <div key={i} style={{
+                      padding:"14px 16px",
+                      borderBottom: i < sessionIdeas.length-1 ? "1px solid #e8f5e8" : "none"
+                    }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"6px" }}>
+                        <div style={{ fontFamily:"monospace", fontSize:"11px", fontWeight:"bold", color:"#1a3320", letterSpacing:"1px" }}>
+                          {s.theme.toUpperCase()}
+                        </div>
+                        <div style={{ fontFamily:"monospace", fontSize:"9px", color:"#6b9f6b", background:"#f0fdf4", padding:"2px 8px", borderRadius:"10px", border:"1px solid #d1e5d1", whiteSpace:"nowrap", marginLeft:"8px" }}>
+                          {s.intensity} · {s.duration}
+                        </div>
+                      </div>
+                      <div style={{ fontSize:"12px", color:"#3d5c3d", lineHeight:"1.5", marginBottom:"8px", fontStyle:"italic" }}>
+                        {s.focus}
+                      </div>
+                      <div style={{ display:"flex", flexDirection:"column", gap:"4px" }}>
+                        {(s.drills||[]).map((d, di) => (
+                          <div key={di} style={{ fontSize:"12px", color:"#1a2e1a", lineHeight:"1.5", display:"flex", gap:"8px" }}>
+                            <span style={{ color:"#16a34a", flexShrink:0, fontSize:"9px", marginTop:"4px" }}>▸</span>
+                            <span>{d}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Diagrams button */}
           {(diagrams || diagramLoading) && (
             <button onClick={() => setShowDiagrams(true)} disabled={diagramLoading} style={{
@@ -906,6 +1089,14 @@ Rules:
               {diagramLoading ? <><LoadingDots /> GENERATING DIAGRAMS…</> : "⬡ VIEW TACTICAL DIAGRAMS"}
             </button>
           )}
+
+          {/* Print button */}
+          <button onClick={printMatchdaySheet} style={{
+            background:"#f0fdf4", border:"1px solid #86efac", color:"#15803d",
+            padding:"10px 16px", borderRadius:"6px", cursor:"pointer",
+            fontSize:"11px", fontFamily:"monospace", letterSpacing:"1.5px",
+            display:"flex", alignItems:"center", justifyContent:"center", gap:"8px"
+          }}>🖨 PRINT MATCHDAY SHEET</button>
           {/* Save controls */}
           {!showSaveInput ? (
             <button onClick={() => setShowSaveInput(true)} style={{
