@@ -385,6 +385,17 @@ export default function TacticalEdge() {
       document.head.appendChild(meta);
     }
     meta.content = "width=device-width, initial-scale=1, maximum-scale=1";
+
+    // Load pdf.js
+    if (!window["pdfjs-dist/build/pdf"]) {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+      script.onload = () => {
+        window["pdfjs-dist/build/pdf"].GlobalWorkerOptions.workerSrc =
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      };
+      document.head.appendChild(script);
+    }
   }, []);
 
   // Our dual formations
@@ -403,6 +414,9 @@ export default function TacticalEdge() {
   const [filmData, setFilmData] = useState({});
   const [opponentName, setOpponentName] = useState("");
   const [file, setFile] = useState(null);
+  const [pdfText, setPdfText] = useState("");
+  const [pdfParsing, setPdfParsing] = useState(false);
+  const [pdfError, setPdfError] = useState("");
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -488,6 +502,54 @@ export default function TacticalEdge() {
     setPendingMode(null);
   };
 
+  const handleFileUpload = async (uploadedFile) => {
+    if (!uploadedFile) return;
+    setFile(uploadedFile);
+    setPdfText("");
+    setPdfError("");
+
+    const name = uploadedFile.name.toLowerCase();
+
+    // Plain text files — read directly
+    if (name.endsWith(".txt")) {
+      const text = await uploadedFile.text();
+      setPdfText(text);
+      return;
+    }
+
+    // PDF — use pdf.js
+    if (name.endsWith(".pdf")) {
+      setPdfParsing(true);
+      try {
+        const pdfjsLib = window["pdfjs-dist/build/pdf"];
+        if (!pdfjsLib) {
+          setPdfError("PDF reader not loaded. Try a .txt file instead.");
+          setPdfParsing(false);
+          return;
+        }
+        const arrayBuffer = await uploadedFile.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          fullText += content.items.map(item => item.str).join(" ") + "\n";
+        }
+        if (fullText.trim().length < 50) {
+          setPdfError("This looks like a scanned PDF — text couldn't be extracted. Try copy-pasting the content into Scout Notes instead.");
+        } else {
+          setPdfText(fullText.trim());
+        }
+      } catch (e) {
+        setPdfError("Could not read PDF: " + e.message);
+      }
+      setPdfParsing(false);
+      return;
+    }
+
+    setPdfError("Unsupported file type. Please upload a .pdf or .txt file.");
+  };
+
   const buildFilmPrompt = () => {
     const filled = FILM_FIELDS.flatMap(s => s.fields)
       .filter(f => filmData[f.id]?.trim())
@@ -542,6 +604,7 @@ HALFTIME OBSERVATIONS:
 OUR SHAPE: Attacking — ${ourAttackF} / Defending — ${ourDefendF}
 OPPONENT SHAPE: Attacking — ${theirAttackF} / Defending — ${theirDefendF}
 ${notes ? `SCOUT NOTES / TENDENCIES:\n${notes}` : ""}
+${pdfText ? `\nSCOUT REPORT DOCUMENT:\n${pdfText.slice(0, 4000)}` : ""}
 ${htContext}
 MODE: ${mode==="pregame"?"Pre-game deep analysis":mode==="sideline"?"Live sideline — fast, punchy bullets":"Halftime adjustments — second half game plan"}
 
@@ -898,10 +961,39 @@ ${mode==="halftime"?"Lead the ATTACKING and ADJUSTMENTS sections with the most c
               {mode==="pregame" && (
                 <div style={{ background:"white", border:"1.5px dashed #c1d5c1", borderRadius:"10px", padding:"14px" }}>
                   <div style={{ fontSize:"10px", letterSpacing:"2px", color:"#6b9f6b", marginBottom:"8px", fontFamily:"monospace" }}>SCOUT REPORT (OPTIONAL)</div>
-                  <input type="file" ref={fileRef} accept=".pdf,.txt,.doc,.docx" style={{ display:"none" }} onChange={e => setFile(e.target.files[0])} />
-                  <button onClick={() => fileRef.current.click()} style={{ background:"#f0fdf4", border:"1px solid #86efac", color:"#15803d", padding:"8px 16px", borderRadius:"6px", cursor:"pointer", fontSize:"12px", fontFamily:"monospace", letterSpacing:"1px" }}>
-                    {file ? `✓ ${file.name}` : "↑ UPLOAD DOCUMENT"}
+                  <input type="file" ref={fileRef} accept=".pdf,.txt" style={{ display:"none" }}
+                    onChange={e => handleFileUpload(e.target.files[0])} />
+                  <button onClick={() => fileRef.current.click()} style={{
+                    background:"#f0fdf4", border:"1px solid #86efac", color:"#15803d",
+                    padding:"8px 16px", borderRadius:"6px", cursor:"pointer",
+                    fontSize:"12px", fontFamily:"monospace", letterSpacing:"1px"
+                  }}>
+                    {pdfParsing ? "⏳ READING PDF…" : file ? `✓ ${file.name}` : "↑ UPLOAD PDF OR TXT"}
                   </button>
+                  {pdfParsing && (
+                    <div style={{ marginTop:"8px", fontSize:"11px", color:"#6b9f6b", fontFamily:"monospace" }}>
+                      Extracting text from PDF…
+                    </div>
+                  )}
+                  {pdfError && (
+                    <div style={{ marginTop:"8px", fontSize:"11px", color:"#dc2626", fontFamily:"monospace", background:"#fef2f2", padding:"8px", borderRadius:"5px" }}>
+                      ⚠ {pdfError}
+                    </div>
+                  )}
+                  {pdfText && !pdfError && (
+                    <div style={{ marginTop:"8px" }}>
+                      <div style={{ fontSize:"9px", color:"#6b9f6b", fontFamily:"monospace", letterSpacing:"1px", marginBottom:"4px" }}>
+                        ✓ {pdfText.length} CHARACTERS EXTRACTED — READY FOR ANALYSIS
+                      </div>
+                      <div style={{
+                        background:"#f6fdf6", border:"1px solid #d1e5d1", borderRadius:"5px",
+                        padding:"8px", fontSize:"10px", color:"#3d5c3d", fontFamily:"monospace",
+                        maxHeight:"80px", overflowY:"auto", lineHeight:"1.5"
+                      }}>
+                        {pdfText.slice(0, 300)}…
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
