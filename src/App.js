@@ -871,6 +871,8 @@ Return ONLY a JSON array, no markdown, no explanation:
 </html>`);
     win.document.close();
   };
+
+  const filledCount = FILM_FIELDS.flatMap(s => s.fields).filter(f => filmData[f.id]?.trim()).length;
   const totalFields = FILM_FIELDS.flatMap(s => s.fields).length;
 
   const TacticalDiagram = ({ diagram }) => {
