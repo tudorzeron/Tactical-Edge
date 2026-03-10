@@ -3,7 +3,7 @@ import { useState, useRef } from "react";
 // ============================================================
 // PASTE YOUR ANTHROPIC API KEY BETWEEN THE QUOTES BELOW
 // ============================================================
-const ANTHROPIC_API_KEY = "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";
+const ANTHROPIC_API_KEY = process.env.REACT_APP_ANTHROPIC_API_KEY;
 // ============================================================
 
 const FORMATIONS = [
