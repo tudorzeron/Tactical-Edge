@@ -141,95 +141,105 @@ const FILM_FIELDS = [
 const FormationPitch = ({ formation, label, color, flip }) => {
   const positions = FORMATION_POSITIONS[formation] || FORMATION_POSITIONS["4-4-2 Flat"];
   const pts = positions.map(([x, y]) => ({ x, y: flip ? (100 - y) : y }));
-  const sx = (p) => 3.5 + (p / 100) * 93;
-  const sy = (p) => 3.5 + (p / 100) * 141;
 
-  // Pitch dimensions in viewBox units: 100 wide x 152 tall, playing area 93x141 starting at 3.5,3.5
-  const pw = 93, ph = 141, px0 = 3.5, py0 = 3.5;
-  const cx = px0 + pw / 2; // 50
-  const cy = py0 + ph / 2; // 74
+  // ViewBox: 100 wide x 152 tall
+  // Playing area: x=4 to 96 (w=92), y=4 to 148 (h=144)
+  const px0=4, py0=4, pw=92, ph=144;
+  const cx = px0 + pw/2;   // 50
+  const cy = py0 + ph/2;   // 76
 
-  // Penalty box: 63% wide, 18% tall of pitch
-  const pbW = pw * 0.63, pbH = ph * 0.175;
-  const pbX = px0 + (pw - pbW) / 2;
+  // Scale helpers
+  const sx = (p) => px0 + (p/100)*pw;
+  const sy = (p) => py0 + (p/100)*ph;
 
-  // 6-yard box: 37% wide, 7% tall
-  const sbW = pw * 0.37, sbH = ph * 0.075;
-  const sbX = px0 + (pw - sbW) / 2;
+  // Penalty box: 58% wide, 16% tall
+  const pbW = pw*0.58, pbH = ph*0.16;
+  const pbX = px0 + (pw-pbW)/2;
 
-  // Penalty spot: 12% from goal line
-  const pSpotY = ph * 0.115;
+  // 6-yard box: 32% wide, 7% tall
+  const sbW = pw*0.32, sbH = ph*0.065;
+  const sbX = px0 + (pw-sbW)/2;
 
-  // Center circle radius
-  const ccR = pw * 0.09;
+  // Penalty spot: 10.5% from goal line
+  const pSpot = ph*0.105;
+
+  // Center circle: real ratio ~9.15m on 105m pitch length = 8.7%
+  const ccR = ph*0.095;
+
+  // Penalty arc radius (same as center circle)
+  const arcR = ccR;
 
   return (
-    <div style={{ position: "relative", width: "100%", paddingBottom: "152%" }}>
-      <svg viewBox="0 0 100 152" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
+    <div style={{ position:"relative", width:"100%", paddingBottom:"152%" }}>
+      <svg viewBox="0 0 100 152" style={{ position:"absolute", inset:0, width:"100%", height:"100%" }}>
 
-        {/* Base pitch green */}
-        <rect x="2" y="2" width="96" height="148" rx="3" fill="#2a5425" />
+        {/* Base */}
+        <rect x="0" y="0" width="100" height="152" rx="4" fill="#2e7d32" />
 
-        {/* Subtle alternating grass stripes */}
-        {Array.from({length:8},(_,i) => (
-          <rect key={i} x="3.5" y={py0 + i*(ph/8)} width={pw} height={ph/8}
-            fill={i%2===0 ? "rgba(0,0,0,0)" : "rgba(0,0,0,0.07)"} />
+        {/* Grass stripes */}
+        {Array.from({length:9},(_,i) => (
+          <rect key={i} x={px0} y={py0+i*(ph/9)} width={pw} height={ph/9}
+            fill={i%2===0 ? "rgba(0,0,0,0)" : "rgba(0,0,0,0.08)"} />
         ))}
 
         {/* Outer boundary */}
         <rect x={px0} y={py0} width={pw} height={ph}
-          fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="0.8" />
+          fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="0.75" />
 
         {/* Halfway line */}
         <line x1={px0} y1={cy} x2={px0+pw} y2={cy}
-          stroke="rgba(255,255,255,0.85)" strokeWidth="0.7" />
+          stroke="rgba(255,255,255,0.9)" strokeWidth="0.7" />
 
         {/* Center circle */}
         <circle cx={cx} cy={cy} r={ccR}
-          fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="0.7" />
+          fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="0.7" />
 
         {/* Center spot */}
-        <circle cx={cx} cy={cy} r="0.9" fill="rgba(255,255,255,0.85)" />
+        <circle cx={cx} cy={cy} r="0.9" fill="rgba(255,255,255,0.9)" />
 
         {/* TOP penalty box */}
         <rect x={pbX} y={py0} width={pbW} height={pbH}
-          fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="0.7" />
+          fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="0.7" />
+
         {/* TOP 6-yard box */}
         <rect x={sbX} y={py0} width={sbW} height={sbH}
-          fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="0.6" />
+          fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="0.6" />
+
         {/* TOP penalty spot */}
-        <circle cx={cx} cy={py0 + pSpotY} r="0.8" fill="rgba(255,255,255,0.8)" />
-        {/* TOP penalty arc */}
-        <path d={`M ${pbX} ${py0+pbH} A ${ccR*1.1} ${ccR*1.1} 0 0 1 ${pbX+pbW} ${py0+pbH}`}
-          fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.6" />
+        <circle cx={cx} cy={py0+pSpot} r="0.75" fill="rgba(255,255,255,0.85)" />
+
+        {/* TOP penalty arc — curves AWAY from box (upward, outside box) */}
+        <path
+          d={`M ${pbX} ${py0+pbH} A ${arcR} ${arcR} 0 0 0 ${pbX+pbW} ${py0+pbH}`}
+          fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="0.65"
+        />
 
         {/* BOTTOM penalty box */}
         <rect x={pbX} y={py0+ph-pbH} width={pbW} height={pbH}
-          fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="0.7" />
+          fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="0.7" />
+
         {/* BOTTOM 6-yard box */}
         <rect x={sbX} y={py0+ph-sbH} width={sbW} height={sbH}
-          fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="0.6" />
+          fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="0.6" />
+
         {/* BOTTOM penalty spot */}
-        <circle cx={cx} cy={py0+ph-pSpotY} r="0.8" fill="rgba(255,255,255,0.8)" />
-        {/* BOTTOM penalty arc */}
-        <path d={`M ${pbX} ${py0+ph-pbH} A ${ccR*1.1} ${ccR*1.1} 0 0 0 ${pbX+pbW} ${py0+ph-pbH}`}
-          fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.6" />
+        <circle cx={cx} cy={py0+ph-pSpot} r="0.75" fill="rgba(255,255,255,0.85)" />
+
+        {/* BOTTOM penalty arc — curves AWAY from box (downward, outside box) */}
+        <path
+          d={`M ${pbX} ${py0+ph-pbH} A ${arcR} ${arcR} 0 0 1 ${pbX+pbW} ${py0+ph-pbH}`}
+          fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="0.65"
+        />
 
         {/* Corner arcs */}
-        <path d={`M ${px0+3.5} ${py0} A 3.5 3.5 0 0 1 ${px0} ${py0+3.5}`}
-          fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.6" />
-        <path d={`M ${px0+pw-3.5} ${py0} A 3.5 3.5 0 0 0 ${px0+pw} ${py0+3.5}`}
-          fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.6" />
-        <path d={`M ${px0} ${py0+ph-3.5} A 3.5 3.5 0 0 0 ${px0+3.5} ${py0+ph}`}
-          fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.6" />
-        <path d={`M ${px0+pw} ${py0+ph-3.5} A 3.5 3.5 0 0 1 ${px0+pw-3.5} ${py0+ph}`}
-          fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.6" />
-
-        {/* Goal lines */}
-        <rect x={cx-8} y={py0-2} width={16} height={2.5}
-          fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
-        <rect x={cx-8} y={py0+ph-0.5} width={16} height={2.5}
-          fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
+        <path d={`M ${px0+3} ${py0} A 3 3 0 0 0 ${px0} ${py0+3}`}
+          fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="0.6" />
+        <path d={`M ${px0+pw-3} ${py0} A 3 3 0 0 1 ${px0+pw} ${py0+3}`}
+          fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="0.6" />
+        <path d={`M ${px0} ${py0+ph-3} A 3 3 0 0 0 ${px0+3} ${py0+ph}`}
+          fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="0.6" />
+        <path d={`M ${px0+pw} ${py0+ph-3} A 3 3 0 0 1 ${px0+pw-3} ${py0+ph}`}
+          fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="0.6" />
 
         {/* Players */}
         {pts.map((pos, i) => {
@@ -250,8 +260,8 @@ const FormationPitch = ({ formation, label, color, flip }) => {
         })}
 
         {/* Formation label */}
-        <text x="50" y="150.5" textAnchor="middle"
-          fill="rgba(255,255,255,0.45)" fontSize="4" fontFamily="monospace">{formation}</text>
+        <text x="50" y="151" textAnchor="middle"
+          fill="rgba(255,255,255,0.4)" fontSize="3.8" fontFamily="monospace">{formation}</text>
       </svg>
     </div>
   );
@@ -396,10 +406,51 @@ export default function TacticalEdge() {
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [savedReports, setSavedReports] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("te_reports") || "[]"); } catch { return []; }
+  });
+  const [showSaved, setShowSaved] = useState(false);
+  const [saveLabel, setSaveLabel] = useState("");
+  const [showSaveInput, setShowSaveInput] = useState(false);
   const fileRef = useRef();
 
   const activeMode = MODES.find(m => m.id === mode);
   const updateFilm = (id, val) => setFilmData(prev => ({ ...prev, [id]: val }));
+
+  const saveReport = () => {
+    if (!analysis || !saveLabel.trim()) return;
+    const report = {
+      id: Date.now(),
+      label: saveLabel.trim(),
+      date: new Date().toLocaleDateString(),
+      mode,
+      opponent: opponentName || "Unknown",
+      ourAttackF, ourDefendF, theirAttackF, theirDefendF,
+      analysis,
+    };
+    const updated = [report, ...savedReports].slice(0, 20);
+    setSavedReports(updated);
+    try { localStorage.setItem("te_reports", JSON.stringify(updated)); } catch {}
+    setSaveLabel("");
+    setShowSaveInput(false);
+  };
+
+  const loadReport = (report) => {
+    setOurAttackF(report.ourAttackF);
+    setOurDefendF(report.ourDefendF);
+    setTheirAttackF(report.theirAttackF);
+    setTheirDefendF(report.theirDefendF);
+    setOpponentName(report.opponent);
+    setMode(report.mode);
+    setAnalysis(report.analysis);
+    setShowSaved(false);
+  };
+
+  const deleteReport = (id) => {
+    const updated = savedReports.filter(r => r.id !== id);
+    setSavedReports(updated);
+    try { localStorage.setItem("te_reports", JSON.stringify(updated)); } catch {}
+  };
 
   const buildFilmPrompt = () => {
     const filled = FILM_FIELDS.flatMap(s => s.fields)
@@ -597,8 +648,38 @@ ${mode==="halftime"?"Lead the ATTACKING and ADJUSTMENTS sections with the most c
         );
       })}
       {analysis && (
-        <div style={{ fontSize:"10px", color:"#a0bfa0", textAlign:"right", fontFamily:"monospace", letterSpacing:"1px" }}>
-          {ourAttackF}/{ourDefendF} vs {theirAttackF}/{theirDefendF} · {activeMode.label} · Tactical Edge
+        <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+          {/* Save controls */}
+          {!showSaveInput ? (
+            <button onClick={() => setShowSaveInput(true)} style={{
+              background:"#f0fdf4", border:"1px solid #86efac", color:"#15803d",
+              padding:"8px 16px", borderRadius:"6px", cursor:"pointer",
+              fontSize:"11px", fontFamily:"monospace", letterSpacing:"1px",
+              display:"flex", alignItems:"center", gap:"6px"
+            }}>💾 SAVE THIS REPORT</button>
+          ) : (
+            <div style={{ display:"flex", gap:"6px" }}>
+              <input
+                value={saveLabel}
+                onChange={e => setSaveLabel(e.target.value)}
+                placeholder="Name this report (e.g. vs SFSU Pregame)"
+                onKeyDown={e => e.key === "Enter" && saveReport()}
+                style={{ flex:1, background:"#f6fdf6", border:"1.5px solid #86efac", color:"#1a3320",
+                  padding:"8px 10px", borderRadius:"6px", fontSize:"12px", fontFamily:"Georgia, serif" }}
+              />
+              <button onClick={saveReport} style={{
+                background:"#1a3320", color:"white", border:"none", padding:"8px 14px",
+                borderRadius:"6px", cursor:"pointer", fontSize:"11px", fontFamily:"monospace"
+              }}>SAVE</button>
+              <button onClick={() => setShowSaveInput(false)} style={{
+                background:"#f0fdf4", border:"1px solid #d1e5d1", color:"#527052",
+                padding:"8px 10px", borderRadius:"6px", cursor:"pointer", fontSize:"11px", fontFamily:"monospace"
+              }}>✕</button>
+            </div>
+          )}
+          <div style={{ fontSize:"10px", color:"#a0bfa0", textAlign:"right", fontFamily:"monospace", letterSpacing:"1px" }}>
+            {ourAttackF}/{ourDefendF} vs {theirAttackF}/{theirDefendF} · {activeMode.label} · Tactical Edge
+          </div>
         </div>
       )}
     </div>
@@ -640,12 +721,21 @@ ${mode==="halftime"?"Lead the ATTACKING and ADJUSTMENTS sections with the most c
             {!isMobile && <div style={{ fontSize:"9px", color:"#4ade8055", letterSpacing:"2px", fontFamily:"monospace" }}>FORMATION INTELLIGENCE SYSTEM</div>}
           </div>
         </div>
-        <div className="header-badge" style={{
-          fontSize:"10px", color:"#86efac", background:"rgba(134,239,172,0.12)",
-          border:"1px solid rgba(134,239,172,0.3)", padding:"5px 14px",
-          borderRadius:"3px", letterSpacing:"2px", fontFamily:"monospace"
-        }}>
-          {activeMode.icon} {activeMode.label.toUpperCase()}
+        <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+          {savedReports.length > 0 && (
+            <button onClick={() => setShowSaved(true)} style={{
+              background:"rgba(134,239,172,0.12)", border:"1px solid rgba(134,239,172,0.3)",
+              color:"#86efac", padding:"5px 12px", borderRadius:"3px",
+              fontSize:"10px", fontFamily:"monospace", letterSpacing:"1px", cursor:"pointer"
+            }}>📁 {savedReports.length} SAVED</button>
+          )}
+          <div className="header-badge" style={{
+            fontSize:"10px", color:"#86efac", background:"rgba(134,239,172,0.12)",
+            border:"1px solid rgba(134,239,172,0.3)", padding:"5px 14px",
+            borderRadius:"3px", letterSpacing:"2px", fontFamily:"monospace"
+          }}>
+            {activeMode.icon} {activeMode.label.toUpperCase()}
+          </div>
         </div>
       </div>
 
@@ -796,6 +886,61 @@ ${mode==="halftime"?"Lead the ATTACKING and ADJUSTMENTS sections with the most c
           </div>
         )}
       </div>
+
+      {/* Saved Reports Drawer */}
+      {showSaved && (
+        <div style={{
+          position:"fixed", inset:0, zIndex:1000,
+          background:"rgba(0,0,0,0.4)", display:"flex", justifyContent:"flex-end"
+        }} onClick={() => setShowSaved(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            width: isMobile ? "100%" : "420px", height:"100%", background:"white",
+            overflowY:"auto", boxShadow:"-4px 0 20px rgba(0,0,0,0.2)",
+            display:"flex", flexDirection:"column"
+          }}>
+            <div style={{ background:"#1a3320", padding:"18px 20px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div style={{ color:"#86efac", fontFamily:"monospace", letterSpacing:"2px", fontSize:"13px", fontWeight:"bold" }}>📁 SAVED REPORTS</div>
+              <button onClick={() => setShowSaved(false)} style={{
+                background:"transparent", border:"none", color:"#86efac",
+                fontSize:"18px", cursor:"pointer", lineHeight:1
+              }}>✕</button>
+            </div>
+            <div style={{ padding:"16px", display:"flex", flexDirection:"column", gap:"10px" }}>
+              {savedReports.length === 0 ? (
+                <div style={{ textAlign:"center", color:"#a0bfa0", fontFamily:"monospace", fontSize:"12px", padding:"40px 0" }}>
+                  No saved reports yet
+                </div>
+              ) : savedReports.map(r => (
+                <div key={r.id} style={{
+                  background:"#f6fdf6", border:"1px solid #d1e5d1", borderRadius:"8px",
+                  padding:"14px", display:"flex", flexDirection:"column", gap:"8px"
+                }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                    <div>
+                      <div style={{ fontSize:"13px", fontWeight:"bold", color:"#1a3320", fontFamily:"Georgia, serif" }}>{r.label}</div>
+                      <div style={{ fontSize:"10px", color:"#6b9f6b", fontFamily:"monospace", marginTop:"2px", letterSpacing:"0.5px" }}>
+                        {r.date} · {r.mode.toUpperCase()} · {r.opponent}
+                      </div>
+                      <div style={{ fontSize:"10px", color:"#a0bfa0", fontFamily:"monospace", marginTop:"2px" }}>
+                        {r.ourAttackF} / {r.ourDefendF} vs {r.theirAttackF} / {r.theirDefendF}
+                      </div>
+                    </div>
+                    <button onClick={() => deleteReport(r.id)} style={{
+                      background:"transparent", border:"none", color:"#fca5a5",
+                      fontSize:"14px", cursor:"pointer", padding:"0 4px"
+                    }}>✕</button>
+                  </div>
+                  <button onClick={() => loadReport(r)} style={{
+                    background:"#1a3320", color:"white", border:"none",
+                    padding:"8px", borderRadius:"5px", cursor:"pointer",
+                    fontSize:"11px", fontFamily:"monospace", letterSpacing:"1px"
+                  }}>↩ LOAD REPORT</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
