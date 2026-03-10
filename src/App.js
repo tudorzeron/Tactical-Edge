@@ -284,7 +284,6 @@ export default function TacticalEdge() {
   const [theirDefendF, setTheirDefendF] = useState("4-4-2 Flat");
 
   const [notes, setNotes] = useState("");
-  const [htNotes, setHtNotes] = useState("");
   const [htWorking, setHtWorking] = useState("");
   const [htNotWorking, setHtNotWorking] = useState("");
   const [htTheirAdjust, setHtTheirAdjust] = useState("");
