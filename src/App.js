@@ -208,9 +208,9 @@ const FormationPitch = ({ formation, label, color, flip }) => {
         {/* TOP penalty spot */}
         <circle cx={cx} cy={py0+pSpot} r="0.75" fill="rgba(255,255,255,0.85)" />
 
-        {/* TOP penalty arc — curves AWAY from box (upward, outside box) */}
+        {/* TOP penalty arc — small tight arc outside the box */}
         <path
-          d={`M ${pbX} ${py0+pbH} A ${arcR} ${arcR} 0 0 0 ${pbX+pbW} ${py0+pbH}`}
+          d={`M ${cx-arcR*0.7} ${py0+pbH} A ${arcR*0.75} ${arcR*0.75} 0 0 0 ${cx+arcR*0.7} ${py0+pbH}`}
           fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="0.65"
         />
 
@@ -225,9 +225,9 @@ const FormationPitch = ({ formation, label, color, flip }) => {
         {/* BOTTOM penalty spot */}
         <circle cx={cx} cy={py0+ph-pSpot} r="0.75" fill="rgba(255,255,255,0.85)" />
 
-        {/* BOTTOM penalty arc — curves AWAY from box (downward, outside box) */}
+        {/* BOTTOM penalty arc — small tight arc outside the box */}
         <path
-          d={`M ${pbX} ${py0+ph-pbH} A ${arcR} ${arcR} 0 0 1 ${pbX+pbW} ${py0+ph-pbH}`}
+          d={`M ${cx-arcR*0.7} ${py0+ph-pbH} A ${arcR*0.75} ${arcR*0.75} 0 0 1 ${cx+arcR*0.7} ${py0+ph-pbH}`}
           fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="0.65"
         />
 
