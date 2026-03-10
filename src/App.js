@@ -141,36 +141,117 @@ const FILM_FIELDS = [
 const FormationPitch = ({ formation, label, color, flip }) => {
   const positions = FORMATION_POSITIONS[formation] || FORMATION_POSITIONS["4-4-2 Flat"];
   const pts = positions.map(([x, y]) => ({ x, y: flip ? (100 - y) : y }));
-  const sx = (p) => 3 + (p / 100) * 94;
-  const sy = (p) => 3 + (p / 100) * 140;
+  const sx = (p) => 3.5 + (p / 100) * 93;
+  const sy = (p) => 3.5 + (p / 100) * 141;
+
+  // Pitch dimensions in viewBox units: 100 wide x 152 tall, playing area 93x141 starting at 3.5,3.5
+  const pw = 93, ph = 141, px0 = 3.5, py0 = 3.5;
+  const cx = px0 + pw / 2; // 50
+  const cy = py0 + ph / 2; // 74
+
+  // Penalty box: 63% wide, 18% tall of pitch
+  const pbW = pw * 0.63, pbH = ph * 0.175;
+  const pbX = px0 + (pw - pbW) / 2;
+
+  // 6-yard box: 37% wide, 7% tall
+  const sbW = pw * 0.37, sbH = ph * 0.075;
+  const sbX = px0 + (pw - sbW) / 2;
+
+  // Penalty spot: 12% from goal line
+  const pSpotY = ph * 0.115;
+
+  // Center circle radius
+  const ccR = pw * 0.09;
 
   return (
     <div style={{ position: "relative", width: "100%", paddingBottom: "152%" }}>
       <svg viewBox="0 0 100 152" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
-        <rect x="2" y="2" width="96" height="146" rx="3" fill="#2d5a27" />
-        {Array.from({length:9},(_,i) => (
-          <rect key={i} x="2" y={2+i*16.2} width="96" height="8.1" fill={i%2===0?"#2d5a27":"#295224"} />
+
+        {/* Base pitch green */}
+        <rect x="2" y="2" width="96" height="148" rx="3" fill="#2a5425" />
+
+        {/* Subtle alternating grass stripes */}
+        {Array.from({length:8},(_,i) => (
+          <rect key={i} x="3.5" y={py0 + i*(ph/8)} width={pw} height={ph/8}
+            fill={i%2===0 ? "rgba(0,0,0,0)" : "rgba(0,0,0,0.07)"} />
         ))}
-        <rect x="3.5" y="3.5" width="93" height="143" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="0.9" />
-        <line x1="3.5" y1="75" x2="96.5" y2="75" stroke="rgba(255,255,255,0.65)" strokeWidth="0.7" />
-        <circle cx="50" cy="75" r="14" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="0.7" />
-        <circle cx="50" cy="75" r="1.2" fill="rgba(255,255,255,0.65)" />
-        <rect x="21" y="3.5" width="58" height="24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.7" />
-        <rect x="34" y="3.5" width="32" height="11" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="0.55" />
-        <rect x="21" y="118.5" width="58" height="24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.7" />
-        <rect x="34" y="132.5" width="32" height="11" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="0.55" />
+
+        {/* Outer boundary */}
+        <rect x={px0} y={py0} width={pw} height={ph}
+          fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="0.8" />
+
+        {/* Halfway line */}
+        <line x1={px0} y1={cy} x2={px0+pw} y2={cy}
+          stroke="rgba(255,255,255,0.85)" strokeWidth="0.7" />
+
+        {/* Center circle */}
+        <circle cx={cx} cy={cy} r={ccR}
+          fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="0.7" />
+
+        {/* Center spot */}
+        <circle cx={cx} cy={cy} r="0.9" fill="rgba(255,255,255,0.85)" />
+
+        {/* TOP penalty box */}
+        <rect x={pbX} y={py0} width={pbW} height={pbH}
+          fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="0.7" />
+        {/* TOP 6-yard box */}
+        <rect x={sbX} y={py0} width={sbW} height={sbH}
+          fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="0.6" />
+        {/* TOP penalty spot */}
+        <circle cx={cx} cy={py0 + pSpotY} r="0.8" fill="rgba(255,255,255,0.8)" />
+        {/* TOP penalty arc */}
+        <path d={`M ${pbX} ${py0+pbH} A ${ccR*1.1} ${ccR*1.1} 0 0 1 ${pbX+pbW} ${py0+pbH}`}
+          fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.6" />
+
+        {/* BOTTOM penalty box */}
+        <rect x={pbX} y={py0+ph-pbH} width={pbW} height={pbH}
+          fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="0.7" />
+        {/* BOTTOM 6-yard box */}
+        <rect x={sbX} y={py0+ph-sbH} width={sbW} height={sbH}
+          fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="0.6" />
+        {/* BOTTOM penalty spot */}
+        <circle cx={cx} cy={py0+ph-pSpotY} r="0.8" fill="rgba(255,255,255,0.8)" />
+        {/* BOTTOM penalty arc */}
+        <path d={`M ${pbX} ${py0+ph-pbH} A ${ccR*1.1} ${ccR*1.1} 0 0 0 ${pbX+pbW} ${py0+ph-pbH}`}
+          fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.6" />
+
+        {/* Corner arcs */}
+        <path d={`M ${px0+3.5} ${py0} A 3.5 3.5 0 0 1 ${px0} ${py0+3.5}`}
+          fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.6" />
+        <path d={`M ${px0+pw-3.5} ${py0} A 3.5 3.5 0 0 0 ${px0+pw} ${py0+3.5}`}
+          fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.6" />
+        <path d={`M ${px0} ${py0+ph-3.5} A 3.5 3.5 0 0 0 ${px0+3.5} ${py0+ph}`}
+          fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.6" />
+        <path d={`M ${px0+pw} ${py0+ph-3.5} A 3.5 3.5 0 0 1 ${px0+pw-3.5} ${py0+ph}`}
+          fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.6" />
+
+        {/* Goal lines */}
+        <rect x={cx-8} y={py0-2} width={16} height={2.5}
+          fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
+        <rect x={cx-8} y={py0+ph-0.5} width={16} height={2.5}
+          fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
+
+        {/* Players */}
         {pts.map((pos, i) => {
-          const px = sx(pos.x);
-          const py = sy(pos.y);
+          const ppx = sx(pos.x);
+          const ppy = sy(pos.y);
           const isGK = i === 0;
           return (
             <g key={i}>
-              <circle cx={px} cy={py} r="5" fill={isGK ? "#facc15" : color} stroke="white" strokeWidth="1.4" />
-              {isGK && <text x={px} y={py+1.8} textAnchor="middle" fontSize="3.8" fill="#000" fontWeight="bold" fontFamily="Arial">GK</text>}
+              <circle cx={ppx} cy={ppy} r="4.8"
+                fill={isGK ? "#facc15" : color}
+                stroke="white" strokeWidth="1.2" />
+              {isGK && (
+                <text x={ppx} y={ppy+1.7} textAnchor="middle"
+                  fontSize="3.5" fill="#000" fontWeight="bold" fontFamily="Arial">GK</text>
+              )}
             </g>
           );
         })}
-        <text x="50" y="150" textAnchor="middle" fill="rgba(255,255,255,0.55)" fontSize="4.5" fontFamily="monospace">{formation}</text>
+
+        {/* Formation label */}
+        <text x="50" y="150.5" textAnchor="middle"
+          fill="rgba(255,255,255,0.45)" fontSize="4" fontFamily="monospace">{formation}</text>
       </svg>
     </div>
   );
