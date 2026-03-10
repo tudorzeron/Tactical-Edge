@@ -412,6 +412,7 @@ export default function TacticalEdge() {
   const [showSaved, setShowSaved] = useState(false);
   const [saveLabel, setSaveLabel] = useState("");
   const [showSaveInput, setShowSaveInput] = useState(false);
+  const [pendingMode, setPendingMode] = useState(null);
   const fileRef = useRef();
 
   const activeMode = MODES.find(m => m.id === mode);
@@ -450,6 +451,41 @@ export default function TacticalEdge() {
     const updated = savedReports.filter(r => r.id !== id);
     setSavedReports(updated);
     try { localStorage.setItem("te_reports", JSON.stringify(updated)); } catch {}
+  };
+
+  const handleTabSwitch = (newMode) => {
+    if (analysis && newMode !== mode) {
+      setPendingMode(newMode);
+    } else {
+      setMode(newMode);
+      setAnalysis(null);
+    }
+  };
+
+  const saveAndSwitch = () => {
+    if (!saveLabel.trim()) return;
+    const report = {
+      id: Date.now(),
+      label: saveLabel.trim(),
+      date: new Date().toLocaleDateString(),
+      mode,
+      opponent: opponentName || "Unknown",
+      ourAttackF, ourDefendF, theirAttackF, theirDefendF,
+      analysis,
+    };
+    const updated = [report, ...savedReports].slice(0, 20);
+    setSavedReports(updated);
+    try { localStorage.setItem("te_reports", JSON.stringify(updated)); } catch {}
+    setSaveLabel("");
+    setMode(pendingMode);
+    setAnalysis(null);
+    setPendingMode(null);
+  };
+
+  const discardAndSwitch = () => {
+    setMode(pendingMode);
+    setAnalysis(null);
+    setPendingMode(null);
   };
 
   const buildFilmPrompt = () => {
@@ -744,7 +780,7 @@ ${mode==="halftime"?"Lead the ATTACKING and ADJUSTMENTS sections with the most c
         {/* Mode Tabs */}
         <div style={{ display:"flex", gap:"4px", marginBottom:"16px", background:"#dce8dc", padding:"4px", borderRadius:"8px" }}>
           {MODES.map(m => (
-            <button key={m.id} className="tab" onClick={() => { setMode(m.id); setAnalysis(null); }} style={{
+            <button key={m.id} className="tab" onClick={() => handleTabSwitch(m.id)} style={{
               flex:1, background: mode===m.id ? "white" : "transparent",
               border: mode===m.id ? "1px solid #c1d5c1" : "1px solid transparent",
               color: mode===m.id ? "#14532d" : "#527052",
@@ -886,6 +922,60 @@ ${mode==="halftime"?"Lead the ATTACKING and ADJUSTMENTS sections with the most c
           </div>
         )}
       </div>
+
+      {/* Unsaved Report Guard Modal */}
+      {pendingMode && (
+        <div style={{
+          position:"fixed", inset:0, zIndex:1100,
+          background:"rgba(0,0,0,0.5)", display:"flex",
+          alignItems:"center", justifyContent:"center", padding:"20px"
+        }}>
+          <div style={{
+            background:"white", borderRadius:"12px", padding:"24px",
+            width:"100%", maxWidth:"380px", boxShadow:"0 8px 32px rgba(0,0,0,0.25)"
+          }}>
+            <div style={{ fontSize:"13px", fontWeight:"bold", color:"#1a3320", fontFamily:"monospace", letterSpacing:"1px", marginBottom:"6px" }}>
+              💾 UNSAVED REPORT
+            </div>
+            <div style={{ fontSize:"13px", color:"#3d5c3d", fontFamily:"Georgia, serif", lineHeight:"1.6", marginBottom:"18px" }}>
+              You have an active report. Do you want to save it before switching?
+            </div>
+
+            {/* Save input */}
+            <input
+              value={saveLabel}
+              onChange={e => setSaveLabel(e.target.value)}
+              placeholder="Name this report (e.g. vs SFSU Pregame)"
+              onKeyDown={e => e.key === "Enter" && saveAndSwitch()}
+              style={{
+                width:"100%", background:"#f6fdf6", border:"1.5px solid #86efac",
+                color:"#1a3320", padding:"9px 12px", borderRadius:"6px",
+                fontSize:"12px", fontFamily:"Georgia, serif", marginBottom:"12px",
+                boxSizing:"border-box"
+              }}
+            />
+
+            <div style={{ display:"flex", gap:"8px" }}>
+              <button onClick={saveAndSwitch} disabled={!saveLabel.trim()} style={{
+                flex:2, background: saveLabel.trim() ? "#1a3320" : "#a0bfa0",
+                color:"white", border:"none", padding:"10px",
+                borderRadius:"6px", cursor: saveLabel.trim() ? "pointer" : "not-allowed",
+                fontSize:"11px", fontFamily:"monospace", letterSpacing:"1px", fontWeight:"bold"
+              }}>SAVE & SWITCH</button>
+              <button onClick={discardAndSwitch} style={{
+                flex:1, background:"#fff7ed", border:"1px solid #fed7aa",
+                color:"#c2410c", padding:"10px", borderRadius:"6px",
+                cursor:"pointer", fontSize:"11px", fontFamily:"monospace", letterSpacing:"1px"
+              }}>DISCARD</button>
+              <button onClick={() => setPendingMode(null)} style={{
+                flex:1, background:"#f6fdf6", border:"1px solid #d1e5d1",
+                color:"#527052", padding:"10px", borderRadius:"6px",
+                cursor:"pointer", fontSize:"11px", fontFamily:"monospace", letterSpacing:"1px"
+              }}>CANCEL</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Saved Reports Drawer */}
       {showSaved && (
