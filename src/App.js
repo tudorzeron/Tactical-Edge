@@ -418,6 +418,9 @@ export default function TacticalEdge() {
   const [pdfParsing, setPdfParsing] = useState(false);
   const [pdfError, setPdfError] = useState("");
   const [analysis, setAnalysis] = useState(null);
+  const [diagrams, setDiagrams] = useState(null);
+  const [showDiagrams, setShowDiagrams] = useState(false);
+  const [diagramLoading, setDiagramLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [savedReports, setSavedReports] = useState(() => {
@@ -634,8 +637,37 @@ ${mode==="sideline"?"Keep each bullet to 1 sharp sentence. Sideline-ready langua
 ${mode==="halftime"?"Lead the ATTACKING and ADJUSTMENTS sections with the most critical second-half change based on what's not working. Be direct and decisive.":""}`;
   };
 
+  const buildDiagramPrompt = (analysisText) => `You are a soccer tactics visualizer. Based on this tactical analysis, generate exactly 3 tactical diagrams as JSON.
+
+ANALYSIS:
+${analysisText}
+
+OUR FORMATION (attacking): ${ourAttackF} — our players attack from bottom, opponent defends at top.
+OPPONENT FORMATION (defending): ${theirDefendF}
+
+Return ONLY a JSON array, no other text, no markdown, no explanation. Format:
+[
+  {
+    "title": "Short diagram title (max 5 words)",
+    "description": "One sentence explaining the pattern",
+    "our_players": [[x, y], ...],
+    "opp_players": [[x, y], ...],
+    "arrows": [{"from": [x, y], "to": [x, y], "color": "green"}]
+  }
+]
+
+COORDINATE SYSTEM: x=0 is left edge, x=100 is right edge. y=0 is TOP of pitch (opponent goal), y=100 is BOTTOM (our goal). Our players attack UPWARD so they start with higher y values (60-90). Opponent players defend at lower y values (10-45). Arrows show movement direction.
+
+Rules:
+- Each diagram shows 4-6 of our players and 3-5 opponent players (not all 11)
+- Show only the players relevant to the pattern
+- Arrows show runs, passes, or pressing movements
+- Arrow colors: "green" for our moves, "red" for opponent moves, "white" for ball movement
+- Make coordinates realistic — spread players across the width, respect formation shape
+- Each diagram must show a DIFFERENT tactical pattern from the analysis`;
+
   const run = async () => {
-    setLoading(true); setAnalysis(null); setError(null);
+    setLoading(true); setAnalysis(null); setError(null); setDiagrams(null);
     try {
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
@@ -656,7 +688,10 @@ ${mode==="halftime"?"Lead the ATTACKING and ADJUSTMENTS sections with the most c
         setError(`API Error: ${data.error.message}`);
       } else {
         const text = data.content?.map(b => b.text||"").join("\n") || "";
-        setAnalysis(parseAnalysis(text));
+        const parsed = parseAnalysis(text);
+        setAnalysis(parsed);
+        // Kick off diagram generation in background
+        generateDiagrams(text);
       }
     } catch(e) {
       setError("Connection failed: " + e.message);
@@ -664,8 +699,118 @@ ${mode==="halftime"?"Lead the ATTACKING and ADJUSTMENTS sections with the most c
     setLoading(false);
   };
 
+  const generateDiagrams = async (analysisText) => {
+    setDiagramLoading(true);
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true"
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 2000,
+          messages: [{ role: "user", content: buildDiagramPrompt(analysisText) }],
+        }),
+      });
+      const data = await res.json();
+      if (!data.error) {
+        const text = data.content?.map(b => b.text||"").join("") || "";
+        try {
+          const clean = text.replace(/```json|```/g, "").trim();
+          const diagData = JSON.parse(clean);
+          setDiagrams(diagData);
+        } catch { /* silent fail — diagrams just won't show */ }
+      }
+    } catch { /* silent fail */ }
+    setDiagramLoading(false);
+  };
+
   const filledCount = FILM_FIELDS.flatMap(s => s.fields).filter(f => filmData[f.id]?.trim()).length;
   const totalFields = FILM_FIELDS.flatMap(s => s.fields).length;
+
+  const TacticalDiagram = ({ diagram }) => {
+    const px0=4, py0=4, pw=92, ph=144;
+    const sx = (x) => px0 + (x/100)*pw;
+    const sy = (y) => py0 + (y/100)*ph;
+    const cx = px0+pw/2, cy = py0+ph/2;
+    const pbW=pw*0.58, pbH=ph*0.16, pbX=px0+(pw-pbW)/2;
+    const sbW=pw*0.32, sbH=ph*0.065, sbX=px0+(pw-sbW)/2;
+    const ccR=ph*0.095;
+
+    const arrowHead = (x1,y1,x2,y2,color) => {
+      const angle = Math.atan2(y2-y1, x2-x1);
+      const len = 3;
+      const p1x = x2 - len*Math.cos(angle-0.4);
+      const p1y = y2 - len*Math.sin(angle-0.4);
+      const p2x = x2 - len*Math.cos(angle+0.4);
+      const p2y = y2 - len*Math.sin(angle+0.4);
+      return `M ${p1x} ${p1y} L ${x2} ${y2} L ${p2x} ${p2y}`;
+    };
+
+    return (
+      <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+        <div style={{ fontSize:"11px", fontWeight:"bold", color:"#1a3320", fontFamily:"monospace", letterSpacing:"1px" }}>
+          {diagram.title?.toUpperCase()}
+        </div>
+        <div style={{ fontSize:"12px", color:"#527052", fontFamily:"Georgia, serif", lineHeight:"1.5" }}>
+          {diagram.description}
+        </div>
+        <div style={{ position:"relative", width:"100%", paddingBottom:"152%" }}>
+          <svg viewBox="0 0 100 152" style={{ position:"absolute", inset:0, width:"100%", height:"100%" }}>
+            {/* Pitch base */}
+            <rect x="0" y="0" width="100" height="152" rx="4" fill="#2e7d32" />
+            {Array.from({length:9},(_,i)=>(
+              <rect key={i} x={px0} y={py0+i*(ph/9)} width={pw} height={ph/9}
+                fill={i%2===0?"rgba(0,0,0,0)":"rgba(0,0,0,0.08)"} />
+            ))}
+            <rect x={px0} y={py0} width={pw} height={ph} fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.7" />
+            <line x1={px0} y1={cy} x2={px0+pw} y2={cy} stroke="rgba(255,255,255,0.7)" strokeWidth="0.6" />
+            <circle cx={cx} cy={cy} r={ccR} fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="0.6" />
+            <circle cx={cx} cy={cy} r="0.9" fill="rgba(255,255,255,0.7)" />
+            <rect x={pbX} y={py0} width={pbW} height={pbH} fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
+            <rect x={sbX} y={py0} width={sbW} height={sbH} fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="0.5" />
+            <path d={`M ${cx-ccR*0.7} ${py0+pbH} A ${ccR*0.75} ${ccR*0.75} 0 0 0 ${cx+ccR*0.7} ${py0+pbH}`} fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.5" />
+            <rect x={pbX} y={py0+ph-pbH} width={pbW} height={pbH} fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.6" />
+            <rect x={sbX} y={py0+ph-sbH} width={sbW} height={sbH} fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="0.5" />
+            <path d={`M ${cx-ccR*0.7} ${py0+ph-pbH} A ${ccR*0.75} ${ccR*0.75} 0 0 1 ${cx+ccR*0.7} ${py0+ph-pbH}`} fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="0.5" />
+
+            {/* Arrows — drawn before players so players sit on top */}
+            {(diagram.arrows||[]).map((arrow, i) => {
+              const x1=sx(arrow.from[0]), y1=sy(arrow.from[1]);
+              const x2=sx(arrow.to[0]),   y2=sy(arrow.to[1]);
+              const col = arrow.color==="red" ? "#f87171" : arrow.color==="white" ? "rgba(255,255,255,0.9)" : "#86efac";
+              return (
+                <g key={i}>
+                  <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={col} strokeWidth="1.2" strokeDasharray="3 2" opacity="0.85" />
+                  <path d={arrowHead(x1,y1,x2,y2,col)} fill="none" stroke={col} strokeWidth="1.1" />
+                </g>
+              );
+            })}
+
+            {/* Opponent players — red, at top */}
+            {(diagram.opp_players||[]).map(([x,y], i) => (
+              <circle key={i} cx={sx(x)} cy={sy(y)} r="4.5" fill="#dc2626" stroke="white" strokeWidth="1.1" />
+            ))}
+
+            {/* Our players — green, at bottom */}
+            {(diagram.our_players||[]).map(([x,y], i) => (
+              <circle key={i} cx={sx(x)} cy={sy(y)} r="4.5" fill="#16a34a" stroke="white" strokeWidth="1.1" />
+            ))}
+          </svg>
+        </div>
+        {/* Legend */}
+        <div style={{ display:"flex", gap:"12px", fontSize:"9px", fontFamily:"monospace", color:"#6b9f6b" }}>
+          <span>🟢 US</span>
+          <span>🔴 THEM</span>
+          <span style={{color:"#86efac"}}>— RUN/PASS</span>
+        </div>
+      </div>
+    );
+  };
 
   const FormationCard = () => (
     <div style={{ background:"white", border:"1px solid #d1e5d1", borderRadius:"10px", padding:"18px", boxShadow:"0 1px 4px rgba(0,0,0,0.07)" }}>
@@ -748,6 +893,19 @@ ${mode==="halftime"?"Lead the ATTACKING and ADJUSTMENTS sections with the most c
       })}
       {analysis && (
         <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+          {/* Diagrams button */}
+          {(diagrams || diagramLoading) && (
+            <button onClick={() => setShowDiagrams(true)} disabled={diagramLoading} style={{
+              background: diagramLoading ? "#e8f5e8" : "#1a3320",
+              color: diagramLoading ? "#6b9f6b" : "white",
+              border: diagramLoading ? "1px solid #d1e5d1" : "none",
+              padding:"10px 16px", borderRadius:"6px", cursor: diagramLoading ? "not-allowed" : "pointer",
+              fontSize:"11px", fontFamily:"monospace", letterSpacing:"1.5px",
+              display:"flex", alignItems:"center", justifyContent:"center", gap:"8px"
+            }}>
+              {diagramLoading ? <><LoadingDots /> GENERATING DIAGRAMS…</> : "⬡ VIEW TACTICAL DIAGRAMS"}
+            </button>
+          )}
           {/* Save controls */}
           {!showSaveInput ? (
             <button onClick={() => setShowSaveInput(true)} style={{
@@ -1014,6 +1172,50 @@ ${mode==="halftime"?"Lead the ATTACKING and ADJUSTMENTS sections with the most c
           </div>
         )}
       </div>
+
+      {/* Tactical Diagrams Modal */}
+      {showDiagrams && diagrams && (
+        <div style={{
+          position:"fixed", inset:0, zIndex:1050,
+          background:"rgba(0,0,0,0.6)", display:"flex",
+          alignItems:"flex-start", justifyContent:"center",
+          padding:"16px", overflowY:"auto"
+        }} onClick={() => setShowDiagrams(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background:"#eef3ee", borderRadius:"12px", width:"100%", maxWidth:"860px",
+            boxShadow:"0 8px 40px rgba(0,0,0,0.3)", overflow:"hidden", marginTop:"20px"
+          }}>
+            <div style={{
+              background:"#1a3320", padding:"16px 20px",
+              display:"flex", justifyContent:"space-between", alignItems:"center"
+            }}>
+              <div style={{ color:"#86efac", fontFamily:"monospace", letterSpacing:"2px", fontSize:"13px", fontWeight:"bold" }}>
+                ⬡ TACTICAL DIAGRAMS
+              </div>
+              <button onClick={() => setShowDiagrams(false)} style={{
+                background:"transparent", border:"none", color:"#86efac",
+                fontSize:"20px", cursor:"pointer", lineHeight:1
+              }}>✕</button>
+            </div>
+            <div style={{
+              display:"grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              gap:"20px", padding:"20px"
+            }}>
+              {diagrams.map((diagram, i) => (
+                <div key={i} style={{
+                  background:"white", borderRadius:"10px", padding:"16px",
+                  border:"1px solid #d1e5d1", boxShadow:"0 1px 4px rgba(0,0,0,0.07)"
+                }}>
+                  <TacticalDiagram diagram={diagram} />
+                </div>
+              ))}
+            </div>
+            <div style={{ padding:"0 20px 16px", fontSize:"10px", color:"#6b9f6b", fontFamily:"monospace", letterSpacing:"1px" }}>
+              {ourAttackF} attacking vs {theirDefendF} — AI-generated patterns from analysis
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Unsaved Report Guard Modal */}
       {pendingMode && (
